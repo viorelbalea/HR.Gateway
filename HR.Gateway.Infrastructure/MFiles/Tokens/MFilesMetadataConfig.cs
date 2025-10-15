@@ -1,4 +1,4 @@
-namespace HR.Gateway.Infrastructure.MFiles;
+namespace HR.Gateway.Infrastructure.MFiles.Tokens;
 
 public sealed class MFilesMetadataConfig
 {

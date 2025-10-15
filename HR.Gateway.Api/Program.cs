@@ -4,7 +4,7 @@ using HR.Gateway.Application.Abstractions.Security;
 using HR.Gateway.Infrastructure;
 using HR.Gateway.Infrastructure.Auth;
 using HR.Gateway.Infrastructure.MFiles;
-using HR.Gateway.Infrastructure.MFiles.Clients;
+using HR.Gateway.Infrastructure.MFiles.Common;
 using HR.Gateway.Infrastructure.MFiles.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;

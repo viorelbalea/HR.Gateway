@@ -1,3 +1,5 @@
+using HR.Gateway.Api.Contracts;
+using HR.Gateway.Application.Abstractions.Employees;
 using HR.Gateway.Infrastructure.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -40,5 +42,49 @@ public class UsersController(UserManager<AppUser> users, RoleManager<AppRole> ro
         var roles = await users.GetRolesAsync(user);
         return Ok(new { user.Id, user.Email, user.UserName, roles });
     }
+    
+    [Authorize]
+    [HttpGet("api/users/me/overview")]
+    public async Task<ActionResult<UserOverviewDto>> Overview(
+        [FromServices] IEmployeeOverviewProvider provider, CancellationToken ct)
+    {
+        var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
+
+        var app = await provider.GetOverviewAsync(email, ct);
+
+        var dto = new UserOverviewDto
+        {
+            Profile = new UserProfileDto
+            {
+                Email = app.Profile.Email,
+                FullName = app.Profile.FullName,
+                FirstName = app.Profile.FirstName,
+                LastName = app.Profile.LastName,
+                Department = app.Profile.Department,
+                Position = app.Profile.Position
+            },
+            Leave = new LeaveOverviewDto
+            {
+                TotalAvailable = app.TotalAvailable,
+                PerYear = app.PerYear
+                    .Select(p => new LeavePerYearDto { Year = p.Year, Available = p.Available })
+                    .ToList(),
+                PerYearDetailed = app.PerYearDetailed?
+                    .Select(p => new LeavePerYearDetailedDto
+                    {
+                        An = p.Year,
+                        AnId = p.YearId,
+                        NumarZileAlocate = p.Allocated,
+                        NumarZileConsumate = p.Used,
+                        NumarZileRamase = p.Available
+                    })
+                    .ToList()
+            }
+        };
+
+        return Ok(dto);
+    }
+
 }
 

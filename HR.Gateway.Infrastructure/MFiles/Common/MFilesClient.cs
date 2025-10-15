@@ -2,7 +2,7 @@ using System.Net.Http;
 using HR.Gateway.Application.Abstractions.MFiles;
 using Microsoft.Extensions.Logging;
 
-namespace HR.Gateway.Infrastructure.MFiles.Clients;
+namespace HR.Gateway.Infrastructure.MFiles.Common;
 
 public sealed class MFilesClient : IMFilesClient
 {
@@ -37,7 +37,7 @@ public sealed class MFilesClient : IMFilesClient
         }
 
         resp.EnsureSuccessStatusCode();
-        return body; // va fi JSON cu object types
+        return body;
     }
 
 }
