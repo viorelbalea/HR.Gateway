@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   db:
     image: postgres:16
@@ -12,5 +11,11 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U hr_admin -d hr_gateway_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 volumes:
   pg_data:
+    name: hr_pg_data 

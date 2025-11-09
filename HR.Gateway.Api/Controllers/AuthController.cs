@@ -1,26 +1,26 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using HR.Gateway.Api.Contracts.Utilizatori.Auth;
+using HR.Gateway.Application.Abstractions.Security;
 using HR.Gateway.Infrastructure.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 
 namespace HR.Gateway.Api.Controllers;
-
 [ApiController]
 [Route("api/auth")]
 public class AuthController(
     UserManager<AppUser> users,
     RoleManager<AppRole> roles,
-    IConfiguration cfg
+    ITokenFactory tokens,                         
+    HR.Gateway.Application.Abstractions.Security.IAdAuthService? adAuth = null 
 ) : ControllerBase
 {
+    
+    
     // POST /api/auth/register 
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
+    public async Task<ActionResult<RegisterResponse>> Register([FromBody] RegisterRequest dto)
     {
         var user = new AppUser
         {
@@ -31,7 +31,8 @@ public class AuthController(
         };
 
         var create = await users.CreateAsync(user, dto.Password);
-        if (!create.Succeeded) return Problem(string.Join("; ", create.Errors.Select(e => e.Description)));
+        if (!create.Succeeded)
+            return Problem(string.Join("; ", create.Errors.Select(e => e.Description)));
 
         if (!string.IsNullOrWhiteSpace(dto.Role))
         {
@@ -41,34 +42,33 @@ public class AuthController(
             await users.AddToRoleAsync(user, dto.Role);
         }
 
-        return Ok(new { user.Id, user.Email, dto.Role });
+        return Ok(new RegisterResponse { Id = user.Id, Email = user.Email!, Role = dto.Role });
     }
 
-    // POST /api/auth/login  (JWT local, cu user/parolă din Identity)
+    // POST /api/auth/login  (JWT local)
     [HttpPost("login")]
     [AllowAnonymous]
-    public async Task<IActionResult> Login([FromBody] LoginDto dto)
+    public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest dto)
     {
         var user = await users.FindByEmailAsync(dto.Email);
         if (user is null) return Unauthorized();
         if (!await users.CheckPasswordAsync(user, dto.Password)) return Unauthorized();
 
-        return Ok(new { token = CreateJwt(user) });
+        var rolesList = await users.GetRolesAsync(user);
+        var token = await tokens.CreateJwtAsync(user.Id, user.Email, user.UserName, rolesList);
+
+        return Ok(new LoginResponse { Token = token });
     }
 
+    // POST /api/auth/login-ad  (LDAP/AD + mapare user local + JWT)
     [HttpPost("login-ad")]
     [AllowAnonymous]
-    public async Task<IActionResult> LoginAd(
-        [FromBody] LoginDto dto,
-        [FromServices] HR.Gateway.Application.Abstractions.Security.IAdAuthService adAuth,
-        [FromServices] UserManager<AppUser> users,
-        [FromServices] RoleManager<AppRole> roles,
-        [FromServices] IConfiguration cfg)
+    public async Task<ActionResult<LoginResponse>> LoginAd([FromBody] LoginRequest dto)
     {
+        if (adAuth is null) return Problem("AD auth service not configured.");
         var ok = await adAuth.ValidateAsync(dto.Email, dto.Password);
         if (!ok) return Unauthorized();
 
-        // mapăm userul AD în user local (creăm dacă nu există)
         var user = await users.FindByEmailAsync(dto.Email);
         if (user is null)
         {
@@ -80,74 +80,28 @@ public class AuthController(
                 EmailConfirmed = true
             };
             var create = await users.CreateAsync(user);
-            if (!create.Succeeded) return Problem(string.Join("; ", create.Errors.Select(e => e.Description)));
-            // opțional: rol implicit
+            if (!create.Succeeded)
+                return Problem(string.Join("; ", create.Errors.Select(e => e.Description)));
+
             const string defaultRole = "Employee";
             if (!await roles.RoleExistsAsync(defaultRole))
                 await roles.CreateAsync(new AppRole { Id = Guid.NewGuid(), Name = defaultRole });
             await users.AddToRoleAsync(user, defaultRole);
         }
 
-        // generează JWT identic cu login-ul local
-        var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
-            new(ClaimTypes.Name, user.UserName ?? "")
-        };
-        var userRoles = await users.GetRolesAsync(user);
-        claims.AddRange(userRoles.Select(r => new Claim(ClaimTypes.Role, r)));
+        var rolesList = await users.GetRolesAsync(user);
+        var token = await tokens.CreateJwtAsync(user.Id, user.Email, user.UserName, rolesList);
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(cfg["JWT:Key"]!));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var token = new JwtSecurityToken(
-            issuer: cfg["JWT:Issuer"],
-            audience: cfg["JWT:Audience"],
-            claims: claims,
-            expires: DateTime.UtcNow.AddHours(8),
-            signingCredentials: creds
-        );
-        return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
+        return Ok(new LoginResponse { Token = token });
     }
-    
+
     [HttpGet("me")]
     [Authorize]
-    public async Task<IActionResult> Me([FromServices] UserManager<AppUser> users)
+    public async Task<IActionResult> Me()
     {
         var user = await users.GetUserAsync(User);
         if (user is null) return Unauthorized();
-        var roles = await users.GetRolesAsync(user);
-        return Ok(new { user.Id, user.Email, user.UserName, roles });
+        var userRoles = await users.GetRolesAsync(user);
+        return Ok(new { user.Id, user.Email, user.UserName, roles = userRoles });
     }
-
-    // — helpers —
-    private string CreateJwt(AppUser user)
-    {
-        var claims = new List<Claim>
-        {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email ?? ""),
-            new(ClaimTypes.Name, user.UserName ?? "")
-        };
-
-        var userRoles = users.GetRolesAsync(user).GetAwaiter().GetResult();
-        claims.AddRange(userRoles.Select(r => new Claim(ClaimTypes.Role, r)));
-
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(cfg["JWT:Key"]!));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var token = new JwtSecurityToken(
-            issuer: cfg["JWT:Issuer"],
-            audience: cfg["JWT:Audience"],
-            claims: claims,
-            expires: DateTime.UtcNow.AddHours(8),
-            signingCredentials: creds
-        );
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
-
-    // DTOs
-    public record RegisterDto(string Email, string Password, string? Role);
-    public record LoginDto(string Email, string Password);
 }

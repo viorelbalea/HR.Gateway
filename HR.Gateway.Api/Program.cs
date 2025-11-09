@@ -6,6 +6,7 @@ using HR.Gateway.Infrastructure.Auth;
 using HR.Gateway.Infrastructure.MFiles;
 using HR.Gateway.Infrastructure.MFiles.Common;
 using HR.Gateway.Infrastructure.MFiles.Tokens;
+using HR.Gateway.Infrastructure.Security;          // <-- JwtOptions, JwtTokenFactory
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -19,13 +20,13 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // 1) M-Files Options (singura sursă)
 builder.Services.Configure<MFilesOptions>(builder.Configuration.GetSection("MFiles"));
 
-// 2) Typed HttpClients (fără IHttpClientFactory in clase)
+// 2) Typed HttpClients
 builder.Services.AddHttpClient<IMFilesTokenProvider, MFilesTokenProvider>((sp, http) =>
 {
     var opts = sp.GetRequiredService<IOptions<MFilesOptions>>().Value;
     var env  = opts.Environments[opts.ActiveEnvironment];
     var baseUrl = env.BaseUrl;
-    if (!baseUrl.EndsWith("/")) baseUrl += "/";        
+    if (!baseUrl.EndsWith("/")) baseUrl += "/";
     http.BaseAddress = new Uri(baseUrl);
 });
 
@@ -34,11 +35,11 @@ builder.Services.AddHttpClient<IMFilesClient, MFilesClient>((sp, http) =>
     var opts = sp.GetRequiredService<IOptions<MFilesOptions>>().Value;
     var env  = opts.Environments[opts.ActiveEnvironment];
     var baseUrl = env.BaseUrl;
-    if (!baseUrl.EndsWith("/")) baseUrl += "/";        
+    if (!baseUrl.EndsWith("/")) baseUrl += "/";
     http.BaseAddress = new Uri(baseUrl);
 });
 
-// 3) AD / LDAP (dacă îl folosești)
+// 3) AD / LDAP
 builder.Services.AddScoped<IAdAuthService, LdapAdAuthService>();
 
 // 4) CORS + Health
@@ -51,10 +52,15 @@ builder.Services.AddCors(opt =>
 });
 builder.Services.AddHealthChecks();
 
-// 5) JWT
-var jwtKey = builder.Configuration["JWT:Key"] ?? throw new InvalidOperationException("Missing JWT:Key");
-var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? "HR.Gateway";
-var jwtAudience = builder.Configuration["JWT:Audience"] ?? "HR.Gateway.Clients";
+// 5) JWT (config + token factory + auth middleware)
+//    >>> appsettings: "Jwt": { "Issuer": "...", "Audience": "...", "Key": "...", "ExpiryHours": 8 }
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+builder.Services.AddScoped<ITokenFactory, JwtTokenFactory>();
+
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtKey     = jwtSection["Key"]     ?? throw new InvalidOperationException("Missing Jwt:Key");
+var jwtIssuer  = jwtSection["Issuer"]  ?? "HR.Gateway";
+var jwtAudience= jwtSection["Audience"]?? "HR.Gateway.Clients";
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -62,12 +68,14 @@ builder.Services
     {
         opts.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            ValidateLifetime         = true,
+            ClockSkew                = TimeSpan.FromMinutes(2),
+            ValidIssuer              = jwtIssuer,
+            ValidAudience            = jwtAudience,
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
 
@@ -79,6 +87,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "HR Gateway API", Version = "v1" });
+    c.CustomSchemaIds(t => t.FullName?.Replace('+', '.'));
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -86,12 +95,13 @@ builder.Services.AddSwaggerGen(c =>
         Scheme = "bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Lipește DOAR tokenul (fără 'Bearer ')."
+        Description = "Introduce tokenul JWT în formatul: Bearer {token}"
     });
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
-            new OpenApiSecurityScheme {
+            new OpenApiSecurityScheme
+            {
                 Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
             Array.Empty<string>()
@@ -101,26 +111,33 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// log de sanity check din Options
-var mfilesOpts = app.Services.GetRequiredService<IOptions<MFilesOptions>>().Value;
-var activeEnv  = mfilesOpts.ActiveEnvironment;
-var envCfg     = mfilesOpts.Environments[activeEnv];
-app.Logger.LogInformation("ENV={Env} | MFiles.BaseUrl={Url} | Vault={Vault}",
-    app.Environment.EnvironmentName, envCfg.BaseUrl, envCfg.Credentials?.VaultGuid);
+var enableHttpsRedirect = builder.Configuration.GetValue<bool>("EnableHttpsRedirect", false);
+var enableSwagger       = builder.Configuration.GetValue<bool>("EnableSwagger", app.Environment.IsDevelopment());
 
-if (app.Environment.IsDevelopment())
+// ===== Swagger =====
+if (enableSwagger)
 {
+    app.UseDeveloperExceptionPage();   // opțional în prod, dar util la tine acum
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// ===== Pipeline =====
+if (enableHttpsRedirect)
+    app.UseHttpsRedirection();
+
 app.UseCors("default");
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
 app.MapControllers();
-app.MapGet("/", () => Results.Redirect("/swagger"));
+
+// ===== UN SINGUR ROOT =====
+var root = enableSwagger
+    ? app.MapGet("/", () => Results.Redirect("/swagger"))
+    : app.MapGet("/", () => Results.Text("HR Gateway API is running"));
+root.ExcludeFromDescription();
 
 app.Run();
+

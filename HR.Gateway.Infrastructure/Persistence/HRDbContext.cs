@@ -11,6 +11,6 @@ public class HRDbContext : IdentityDbContext<AppUser, AppRole, Guid>
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
-        // fluent config dacă ai nevoie mai târziu
+
     }
 }

@@ -5,7 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Employees\Contracts\" />
+    <Folder Include="UseCases\" />
   </ItemGroup>
 
   <PropertyGroup>

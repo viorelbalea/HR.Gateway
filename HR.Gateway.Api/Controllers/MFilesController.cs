@@ -16,6 +16,7 @@ public class MFilesController(IMFilesClient mf, IMFilesTokenProvider tokens) : C
         => Ok(new { ok = true, server = JsonDocument.Parse(await mf.PingAsync(ct)).RootElement });
 
 #if DEBUG
+    [Authorize(Roles = "admin")]
     [HttpGet("token-dev")]
     public async Task<IActionResult> TokenDev(CancellationToken ct)
         => Ok(new { value = await tokens.GetTokenAsync(ct) });

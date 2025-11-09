@@ -1,5 +1,7 @@
-using HR.Gateway.Api.Contracts;
-using HR.Gateway.Application.Abstractions.Employees;
+using HR.Gateway.Api.Contracts.Angajati;
+using HR.Gateway.Api.Contracts.Concedii.Common;
+using HR.Gateway.Api.Contracts.Utilizatori;
+using HR.Gateway.Application.Abstractions.Angajati;
 using HR.Gateway.Infrastructure.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -9,10 +11,15 @@ namespace HR.Gateway.Api.Controllers;
 
 [ApiController]
 [Route("api/users")]
-[Authorize(Roles = "admin")]
-public class UsersController(UserManager<AppUser> users, RoleManager<AppRole> roles) : ControllerBase
+[Authorize]
+public class UsersController(
+    UserManager<AppUser> users,
+    RoleManager<AppRole> roles,
+    IAngajatiReader overview
+) : ControllerBase
 {
     [HttpGet]
+    [Authorize(Roles = "admin")]
     public IActionResult GetAll()
     {
         var list = users.Users.Select(u => new { u.Id, u.Email, u.UserName }).ToList();
@@ -20,6 +27,7 @@ public class UsersController(UserManager<AppUser> users, RoleManager<AppRole> ro
     }
 
     [HttpPost("{id:guid}/roles/{role}")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> AddRole(Guid id, string role)
     {
         var user = await users.FindByIdAsync(id.ToString());
@@ -30,61 +38,73 @@ public class UsersController(UserManager<AppUser> users, RoleManager<AppRole> ro
 
         var res = await users.AddToRoleAsync(user, role);
         if (!res.Succeeded) return Problem(string.Join("; ", res.Errors.Select(e => e.Description)));
-        
+
         return Ok(new { user.Id, role });
     }
-    
+
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
         var user = await users.GetUserAsync(User);
         if (user is null) return Unauthorized();
-        var roles = await users.GetRolesAsync(user);
-        return Ok(new { user.Id, user.Email, user.UserName, roles });
+        var userRoles = await users.GetRolesAsync(user);
+        return Ok(new { user.Id, user.Email, user.UserName, roles = userRoles });
     }
-    
-    [Authorize]
-    [HttpGet("api/users/me/overview")]
-    public async Task<ActionResult<UserOverviewDto>> Overview(
-        [FromServices] IEmployeeOverviewProvider provider, CancellationToken ct)
+
+    [HttpGet("me/overview")]
+    public async Task<ActionResult<PrezentareUtilizatorDto>> Overview(CancellationToken ct)
     {
-        var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+        string? email =
+            User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+            ?? User.FindFirst("email")?.Value;
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            var u = await users.GetUserAsync(User);
+            email = u?.Email;
+        }
         if (string.IsNullOrWhiteSpace(email)) return Unauthorized();
 
-        var app = await provider.GetOverviewAsync(email, ct);
 
-        var dto = new UserOverviewDto
+        var app = await overview.GetOverviewAsync(email, ct);
+        if (app is null) return NotFound();
+
+        var peAniDetaliat = app.PeAniDetaliat?
+            .Select(p => new ConcediuPeAnDetaliatDto
+            {
+                An        = p.An,
+                AnId      = p.AnId,
+                Alocate   = p.Alocate,
+                Consumate = p.Consumate,
+                Ramase    = p.Ramase
+            })
+            .ToList();
+
+        var totalDisponibile = peAniDetaliat?.Sum(x => x.Ramase) ?? app.TotalZileDisponibile;
+        
+        var profil = new ProfilAngajatDto
         {
-            Profile = new UserProfileDto
-            {
-                Email = app.Profile.Email,
-                FullName = app.Profile.FullName,
-                FirstName = app.Profile.FirstName,
-                LastName = app.Profile.LastName,
-                Department = app.Profile.Department,
-                Position = app.Profile.Position
-            },
-            Leave = new LeaveOverviewDto
-            {
-                TotalAvailable = app.TotalAvailable,
-                PerYear = app.PerYear
-                    .Select(p => new LeavePerYearDto { Year = p.Year, Available = p.Available })
-                    .ToList(),
-                PerYearDetailed = app.PerYearDetailed?
-                    .Select(p => new LeavePerYearDetailedDto
-                    {
-                        An = p.Year,
-                        AnId = p.YearId,
-                        NumarZileAlocate = p.Allocated,
-                        NumarZileConsumate = p.Used,
-                        NumarZileRamase = p.Available
-                    })
-                    .ToList()
-            }
+            Nume               = app.Profil.Nume ?? "",
+            Prenume            = app.Profil.Prenume ?? "",
+            NumeComplet        = app.Profil.NumeComplet,
+            Email              = app.Profil.Email,
+            Departament        = app.Profil.Departament ?? "",
+            Functie            = app.Profil.Functie ?? "",
+            ZileConcediuRamase = totalDisponibile 
+        };
+
+        var concedii = new SituatieConcediiAngajatDto
+        {
+            TotalDisponibile = totalDisponibile,
+            PeAniDetaliat    = peAniDetaliat
+        };
+
+        var dto = new PrezentareUtilizatorDto
+        {
+            Profil = profil,
+            SituatieConcedii = concedii
         };
 
         return Ok(dto);
     }
-
 }
-

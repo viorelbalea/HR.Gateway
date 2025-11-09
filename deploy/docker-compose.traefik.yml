@@ -1,0 +1,67 @@
+
+version: "3.9"
+services:
+  db:
+    image: postgres:16
+    container_name: hr_gateway_pg
+    environment:
+      POSTGRES_USER: hr_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: hr_gateway_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hr_admin -d hr_gateway_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [hrnet]
+
+  gateway:
+    build:
+      context: ../workspace/HR.API.Gateway
+      dockerfile: Dockerfile
+    container_name: hr_gateway_api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ConnectionStrings__Postgres: "Host=db;Port=5432;Database=hr_gateway_db;Username=hr_admin;Password=${POSTGRES_PASSWORD}"
+      Jwt__Key: "${JWT_SIGNING_KEY}"
+      Jwt__Issuer: "HR.Gateway"
+      Jwt__Audience: "HR.Gateway.Clients"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hr-gw.rule=Host(`${GATEWAY_HOST}`)"
+      - "traefik.http.routers.hr-gw.entrypoints=websecure"
+      - "traefik.http.routers.hr-gw.tls.certresolver=letsencrypt"
+      - "traefik.http.services.hr-gw.loadbalancer.server.port=8080"
+    networks: [hrnet]
+
+  reverse-proxy:
+    image: traefik:v3.1
+    container_name: hr_proxy
+    command:
+      - "--providers.docker=true"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.web.address=:80"
+      - "--api.dashboard=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - traefikdata:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [hrnet]
+
+volumes:
+  pg_data:
+  traefikdata:
+
+networks:
+  hrnet:
+    name: hrnet
