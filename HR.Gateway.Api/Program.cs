@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authentication.Negotiate;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -63,9 +64,16 @@ var jwtIssuer  = jwtSection["Issuer"]  ?? "HR.Gateway";
 var jwtAudience= jwtSection["Audience"]?? "HR.Gateway.Clients";
 
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddAuthentication(options => 
+    {
+        // 1. Setăm JWT ca default global. 
+        // Orice endpoint [Authorize] simplu va cere JWT.
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
     .AddJwtBearer(opts =>
     {
+        // Configurarea ta existentă pentru JWT
         opts.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer           = true,
@@ -77,7 +85,8 @@ builder.Services
             ValidAudience            = jwtAudience,
             IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
-    });
+    })
+    .AddNegotiate(); // 2. <--- Adăugăm suportul pentru Windows Auth (dar nu e default)
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();

@@ -1,4 +1,4 @@
-using HR.Gateway.Infrastructure.Entities;
+﻿using HR.Gateway.Infrastructure.Entities;
 using HR.Gateway.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -9,19 +9,27 @@ using Microsoft.Extensions.DependencyInjection;
 using HR.Gateway.Application.Abstractions.Angajati;
 using HR.Gateway.Application.Abstractions.MFiles;
 using HR.Gateway.Application.Abstractions.Security;
+using HR.Gateway.Application.Abstractions.CerereConcediu;
+using HR.Gateway.Application.Abstractions.CerereConcediuFaraPlata;
+using HR.Gateway.Application.Abstractions.CerereConcediuLaEveniment;
+using HR.Gateway.Application.Abstractions.CerereConcediuOdihna;
 using HR.Gateway.Application.Abstractions.Concedii;
 
 // Infrastructure implementations
 using HR.Gateway.Infrastructure.Auth;
 using HR.Gateway.Infrastructure.MFiles.Tokens;
-using HR.Gateway.Infrastructure.Angajati.Client;
-using HR.Gateway.Infrastructure.Angajati.Services;
-using HR.Gateway.Infrastructure.CereriConcedii.Client;
-using HR.Gateway.Infrastructure.CereriConcedii.Services;
+using HR.Gateway.Infrastructure.Angajat.Client;
+using HR.Gateway.Infrastructure.Angajat.Services;
+using HR.Gateway.Infrastructure.CerereConcediuOdihna.Client;
+using HR.Gateway.Infrastructure.CerereConcediuOdihna.Services;
+using HR.Gateway.Infrastructure.Concediu.Services;
+using HR.Gateway.Infrastructure.CerereConcediuFaraPlata.Client;
+using HR.Gateway.Infrastructure.CerereConcediuFaraPlata.Services;
 using HR.Gateway.Infrastructure.MFiles.Common;
-using HR.Gateway.Infrastructure.Concedii;
-using HR.Gateway.Infrastructure.Concedii.Client;
-using HR.Gateway.Infrastructure.Concedii.Services;
+using HR.Gateway.Infrastructure.Concediu;
+using HR.Gateway.Infrastructure.CerereConcediuLaEveniment.Client;
+using HR.Gateway.Infrastructure.CerereConcediuLaEveniment.Services;
+using HR.Gateway.Infrastructure.Concediu.Client;
 
 namespace HR.Gateway.Infrastructure;
 
@@ -92,7 +100,7 @@ public static class DependencyInjection
         services.AddTransient<MFilesAuthHandler>();
 
         // 5) HttpClient către VEM (apelează extension method-urile din M-Files) + X-Authentication
-        services.AddHttpClient<IVemAngajatiClient, VemAngajatiClient>((sp, http) =>
+        services.AddHttpClient<IVemAngajatClient, VemAngajatClient>((sp, http) =>
         {
             var env = sp.GetRequiredService<MFilesEnvironment>();
             var baseUrl = env.BaseUrl.TrimEnd('/');
@@ -107,13 +115,13 @@ public static class DependencyInjection
         })
         .AddHttpMessageHandler<MFilesAuthHandler>();
         
-        // 5b) HttpClient către VEM pentru concedii (reusează același auth handler)
-        services.AddHttpClient<IVemConcediiService, VemConcediiService>((sp, http) =>
+        // 5a) HttpClient către VEM pentru concedii (reusează același auth handler)
+        services.AddHttpClient<IVemConcediuService, VemConcediuService>((sp, http) =>
             {
                 var env = sp.GetRequiredService<MFilesEnvironment>();
                 var baseUrl = env.BaseUrl.TrimEnd('/');
 
-                // asigurăm /REST/ la final (identic cu IVemAngajatiClient)
+                // asigurăm /REST/ la final (identic cu IVemAngajatClient)
                 if (baseUrl.EndsWith("/REST", StringComparison.OrdinalIgnoreCase))
                     http.BaseAddress = new Uri(baseUrl + "/");
                 else
@@ -124,7 +132,36 @@ public static class DependencyInjection
             .AddHttpMessageHandler<MFilesAuthHandler>();
         
         // 5b) HttpClient către VEM pentru cereri concedii (reusează același auth handler)
-        services.AddHttpClient<IVemCereriConcediiService, VemCereriConcediiService>((sp, http) =>
+        services.AddHttpClient<IVemCerereConcediuOdihnaService, VemCerereConcediuOdihnaService>((sp, http) =>
+            {
+                var env = sp.GetRequiredService<MFilesEnvironment>();
+                var baseUrl = env.BaseUrl.TrimEnd('/');
+
+                http.BaseAddress = baseUrl.EndsWith("/REST", StringComparison.OrdinalIgnoreCase)
+                    ? new Uri(baseUrl + "/")
+                    : new Uri(baseUrl + "/REST/");
+
+                http.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .AddHttpMessageHandler<MFilesAuthHandler>();
+        
+        
+        // 5c) HttpClient către VEM pentru cereri concedii fără plată (reusează același auth handler)
+        services.AddHttpClient<IVemCerereConcediuFaraPlataService, VemCerereConcediuFaraPlataService>((sp, http) =>
+            {
+                var env = sp.GetRequiredService<MFilesEnvironment>();
+                var baseUrl = env.BaseUrl.TrimEnd('/');
+
+                http.BaseAddress = baseUrl.EndsWith("/REST", StringComparison.OrdinalIgnoreCase)
+                    ? new Uri(baseUrl + "/")
+                    : new Uri(baseUrl + "/REST/");
+
+                http.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .AddHttpMessageHandler<MFilesAuthHandler>();
+
+        // 5d) HttpClient către VEM pentru cereri concedii de eveniment (reusează același auth handler)
+        services.AddHttpClient<IVemCerereConcediuLaEvenimentService, HR.Gateway.Infrastructure.CerereConcediuLaEveniment.Client.VemCerereConcediuLaEvenimentService>((sp, http) =>
             {
                 var env = sp.GetRequiredService<MFilesEnvironment>();
                 var baseUrl = env.BaseUrl.TrimEnd('/');
@@ -138,13 +175,75 @@ public static class DependencyInjection
             .AddHttpMessageHandler<MFilesAuthHandler>();
         
         // 6) Providerul din Infrastructure care implementează portul din Application
-        services.AddScoped<IAngajatiReader, AngajatiReader>();
+        services.AddScoped<IAngajatReader, AngajatReader>();
         
         // 6b) Portul din Application -> implementarea din Infrastructure
-        services.AddScoped<IConcediiCalculator, ConcediiCalculator>();
+        services.AddScoped<IConcediuCalculator, ConcediuCalculator>();
         
         // 6c) Portul din Application -> implementarea din Infrastructure
-        services.AddScoped<ICereriConcediiWriter, CereriConcediiWriter>();
+        services.AddScoped<ICerereConcediuOdihnaWriter, CerereConcediuOdihnaWriter>();        
+        
+        // 6d) Portul din Application -> implementarea din Infrastructure
+        services.AddHttpClient<ICerereConcediuOdihnaReader, CerereConcediuOdihnaReader>((sp, http) =>
+            {
+                var env = sp.GetRequiredService<MFilesEnvironment>();
+                var baseUrl = env.BaseUrl.TrimEnd('/');
+
+                http.BaseAddress = baseUrl.EndsWith("/REST", StringComparison.OrdinalIgnoreCase)
+                    ? new Uri(baseUrl + "/")
+                    : new Uri(baseUrl + "/REST/");
+
+                http.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .AddHttpMessageHandler<MFilesAuthHandler>();
+        
+        // 6e) Inlocuitori (folosește tot M-Files REST + auth handler)
+        services.AddHttpClient<IInlocuitoriProvider, InlocuitoriProvider>((sp, http) =>
+            {
+                var env = sp.GetRequiredService<MFilesEnvironment>();
+                var baseUrl = env.BaseUrl.TrimEnd('/');
+
+                http.BaseAddress = baseUrl.EndsWith("/REST", StringComparison.OrdinalIgnoreCase)
+                    ? new Uri(baseUrl + "/")
+                    : new Uri(baseUrl + "/REST/");
+
+                http.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .AddHttpMessageHandler<MFilesAuthHandler>();
+
+// 6f) Portul din Application -> implementarea din Infrastructure (Concediu fără plată)
+        services.AddScoped<ICerereConcediuFaraPlataWriter, HR.Gateway.Infrastructure.CerereConcediuFaraPlata.Services.CerereConcediuFaraPlataWriter>();
+
+// 6g) Reader (folosește tot M-Files REST + auth handler) – necesar pentru download document
+        services.AddHttpClient<ICerereConcediuFaraPlataReader, HR.Gateway.Infrastructure.CerereConcediuFaraPlata.Services.CerereConcediuFaraPlataReader>((sp, http) =>
+            {
+                var env = sp.GetRequiredService<MFilesEnvironment>();
+                var baseUrl = env.BaseUrl.TrimEnd('/');
+
+                http.BaseAddress = baseUrl.EndsWith("/REST", StringComparison.OrdinalIgnoreCase)
+                    ? new Uri(baseUrl + "/")
+                    : new Uri(baseUrl + "/REST/");
+
+                http.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .AddHttpMessageHandler<MFilesAuthHandler>();
+
+        
+// 6h) Concediu Eveniment
+        services.AddScoped<ICerereConcediuLaEvenimentWriter, CerereConcediuLaEvenimentWriter>();
+
+        services.AddHttpClient<ICerereConcediuLaEvenimentReader, CerereConcediuLaEvenimentReader>((sp, http) =>
+            {
+                var env = sp.GetRequiredService<MFilesEnvironment>();
+                var baseUrl = env.BaseUrl.TrimEnd('/');
+
+                http.BaseAddress = baseUrl.EndsWith("/REST", StringComparison.OrdinalIgnoreCase)
+                    ? new Uri(baseUrl + "/")
+                    : new Uri(baseUrl + "/REST/");
+
+                http.Timeout = TimeSpan.FromSeconds(30);
+            })
+            .AddHttpMessageHandler<MFilesAuthHandler>();
 
         // 7) LDAP / AD
         services.AddScoped<IAdAuthService, LdapAdAuthService>();
@@ -152,3 +251,11 @@ public static class DependencyInjection
         return services;
     }
 }
+
+
+
+
+
+
+
+

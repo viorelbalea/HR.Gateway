@@ -1,4 +1,4 @@
-using HR.Gateway.Api.Contracts.Angajati;
+﻿using HR.Gateway.Api.Contracts.Angajati;
 using HR.Gateway.Api.Contracts.Concedii.Common;
 using HR.Gateway.Api.Contracts.Utilizatori;
 using HR.Gateway.Application.Abstractions.Angajati;
@@ -15,7 +15,7 @@ namespace HR.Gateway.Api.Controllers;
 public class UsersController(
     UserManager<AppUser> users,
     RoleManager<AppRole> roles,
-    IAngajatiReader overview
+    IAngajatReader overview
 ) : ControllerBase
 {
     [HttpGet]
@@ -52,7 +52,7 @@ public class UsersController(
     }
 
     [HttpGet("me/overview")]
-    public async Task<ActionResult<PrezentareUtilizatorDto>> Overview(CancellationToken ct)
+    public async Task<ActionResult<UtilizatorOverviewResponse>> Overview(CancellationToken ct)
     {
         string? email =
             User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
@@ -70,7 +70,7 @@ public class UsersController(
         if (app is null) return NotFound();
 
         var peAniDetaliat = app.PeAniDetaliat?
-            .Select(p => new ConcediuPeAnDetaliatDto
+            .Select(p => new ConcediuYearDetailItem
             {
                 An        = p.An,
                 AnId      = p.AnId,
@@ -82,7 +82,7 @@ public class UsersController(
 
         var totalDisponibile = peAniDetaliat?.Sum(x => x.Ramase) ?? app.TotalZileDisponibile;
         
-        var profil = new ProfilAngajatDto
+        var profil = new AngajatProfileResponse
         {
             Nume               = app.Profil.Nume ?? "",
             Prenume            = app.Profil.Prenume ?? "",
@@ -93,13 +93,13 @@ public class UsersController(
             ZileConcediuRamase = totalDisponibile 
         };
 
-        var concedii = new SituatieConcediiAngajatDto
+        var concedii = new AngajatGetOverviewResponse
         {
             TotalDisponibile = totalDisponibile,
             PeAniDetaliat    = peAniDetaliat
         };
 
-        var dto = new PrezentareUtilizatorDto
+        var dto = new UtilizatorOverviewResponse
         {
             Profil = profil,
             SituatieConcedii = concedii
@@ -108,3 +108,4 @@ public class UsersController(
         return Ok(dto);
     }
 }
+

@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\HR.Gateway.Domain\HR.Gateway.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>

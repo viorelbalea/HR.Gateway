@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HR.Gateway.Application\HR.Gateway.Application.csproj" />
-    <ProjectReference Include="..\HR.Gateway.Domain\HR.Gateway.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
