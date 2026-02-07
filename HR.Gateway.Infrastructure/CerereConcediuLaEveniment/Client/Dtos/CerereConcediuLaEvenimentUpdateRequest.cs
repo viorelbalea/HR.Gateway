@@ -13,15 +13,12 @@ public sealed class CerereConcediuLaEvenimentUpdateRequest
     [JsonPropertyName("DataInceput")]
     public DateTime DataInceput { get; set; }
 
-    [JsonPropertyName("DataSfarsit")]
-    public DateTime DataSfarsit { get; set; }
+    [JsonPropertyName("TipEvenimentId")]
+    public int TipEvenimentId { get; set; }
 
     [JsonPropertyName("EmailInlocuitor")]
     public string EmailInlocuitor { get; set; } = string.Empty;
 
-    [JsonPropertyName("NumarZileCalculate")]
-    public int NumarZileCalculate { get; set; }
-
-    [JsonPropertyName("Motiv")]
-    public string Motiv { get; set; } = string.Empty;
+    [JsonPropertyName("NumarZile")]
+    public int NumarZile { get; set; }
 }

@@ -8,16 +8,16 @@ public class CerereConcediuOdihnaGetByIdResponse
     public int Id { get; init; }
 
     [JsonPropertyName("DataCerere")]
-    public DateTime DataCreare { get; init; }
+    public DateTime? DataCreare { get; init; }
 
     [JsonPropertyName("DataInceput")]
-    public DateTime DataInceput { get; init; }
+    public DateTime? DataInceput { get; init; }
 
     [JsonPropertyName("DataSfarsit")]
-    public DateTime DataSfarsit { get; init; }
+    public DateTime? DataSfarsit { get; init; }
 
     [JsonPropertyName("NumarZile")]
-    public int NumarZile { get; init; }
+    public int? NumarZile { get; init; }
 
     [JsonPropertyName("State")]
     public string Stare { get; init; } = string.Empty;

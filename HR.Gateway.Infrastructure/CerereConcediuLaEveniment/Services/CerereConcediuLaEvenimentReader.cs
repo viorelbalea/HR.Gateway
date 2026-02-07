@@ -32,15 +32,15 @@ internal sealed class CerereConcediuLaEvenimentReader : ICerereConcediuLaEvenime
         return new AppModel.CerereConcediuLaEvenimentGetByIdResponse
         {
             Id = vemResp.Id,
-            DataCreare = vemResp.DataCreare,
+            DataCerere = vemResp.DataCerere,
             DataInceput = vemResp.DataInceput,
-            DataSfarsit = vemResp.DataSfarsit,
             NumarZile = vemResp.NumarZile,
-            Stare = vemResp.Stare,
+            TipEveniment = vemResp.TipEveniment,
+            TipEvenimentId = vemResp.TipEvenimentId,
             Inlocuitor = vemResp.Inlocuitor,
             NumarInregistrare = vemResp.NumarInregistrare,
             DataInregistrare = vemResp.DataInregistrare,
-            Motiv = vemResp.Motiv
+            State = vemResp.State
         };
     }
 

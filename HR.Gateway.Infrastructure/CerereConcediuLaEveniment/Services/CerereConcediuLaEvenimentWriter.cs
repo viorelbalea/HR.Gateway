@@ -21,17 +21,16 @@ internal sealed class CerereConcediuLaEvenimentWriter : ICerereConcediuLaEvenime
 
     public async Task<int> CreeazaCerereAsync(AppModel.CerereConcediuLaEvenimentCreateRequest req, CancellationToken ct)
     {
-        _log.LogInformation("VEM Create Special Event: {Email} {Start:d}..{End:d}",
-            req.Email, req.DataInceput, req.DataSfarsit);
+        _log.LogInformation("VEM Create Special Event: {Email} {Start:d} TipEveniment:{TipId}",
+            req.Email, req.DataInceput, req.TipEvenimentId);
 
         var resp = await _vem.CreateAsync(new ClientDto.CerereConcediuLaEvenimentCreateRequest
         {
             Email = req.Email,
             DataInceput = req.DataInceput,
-            DataSfarsit = req.DataSfarsit,
-            EmailInlocuitor = req.EmailInlocuitor,
-            NumarZileCalculate = req.NumarZileCalculate,
-            Motiv = req.Motiv ?? string.Empty
+            TipEvenimentId = req.TipEvenimentId,
+            NumarZile = req.NumarZile,
+            EmailInlocuitor = req.EmailInlocuitor
         }, ct);
 
         if (!resp.Succes || resp.CerereConcediuEvenimentId <= 0)
@@ -47,10 +46,9 @@ internal sealed class CerereConcediuLaEvenimentWriter : ICerereConcediuLaEvenime
             CerereConcediuEvenimentId = req.CerereId,
             Email = req.Email,
             DataInceput = req.DataInceput,
-            DataSfarsit = req.DataSfarsit,
+            TipEvenimentId = req.TipEvenimentId,
             EmailInlocuitor = req.EmailInlocuitor,
-            Motiv = req.Motiv ?? string.Empty,
-            NumarZileCalculate = req.NumarZileCalculate
+            NumarZile = req.NumarZile
         };
 
         var resp = await _vem.UpdateAsync(vemReq, ct);
@@ -83,7 +81,7 @@ internal sealed class CerereConcediuLaEvenimentWriter : ICerereConcediuLaEvenime
 
         if (!resp.Succes)
             throw new InvalidOperationException(
-                $"VEM SendToEsign a esuat pentru cererea {cerereId}: {resp.Mesaj}");
+                $"VEM SendToEsign a esuat pentru cererea {cerereId}: {resp.Message}");
     }
 
     public async Task IncarcaDocumentSemnatAsync(int cerereId, string fileName, Stream content, CancellationToken ct = default)

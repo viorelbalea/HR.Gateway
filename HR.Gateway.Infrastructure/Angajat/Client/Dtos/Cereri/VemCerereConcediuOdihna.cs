@@ -28,6 +28,17 @@ public sealed class VemCerereConcediuOdihna
     [JsonPropertyName("DataInregistrare")]   
     public DateTime? DataInregistrare { get; set; }
     
-    [JsonPropertyName("State")]              
+    [JsonPropertyName("State")]
     public string Stare { get; set; } = "";
+
+    // Proprietăți adiționale pentru Concediu Fără Plată
+    [JsonPropertyName("MotivConcediu")]
+    public string? MotivConcediu { get; set; }
+
+    // Proprietăți adiționale pentru Concediu La Eveniment
+    [JsonPropertyName("TipEveniment")]
+    public string? TipEveniment { get; set; }
+
+    [JsonPropertyName("TipEvenimentId")]
+    public int? TipEvenimentId { get; set; }
 }

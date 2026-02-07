@@ -61,10 +61,10 @@ public sealed class CerereConcediuLaEvenimentController(
         {
             Email = email,
             DataInceput = body.DataInceput,
-            DataSfarsit = body.DataSfarsit,
+            TipEvenimentId = body.TipEvenimentId,
+            NumarZile = body.NumarZile,
             EmailInlocuitor = body.EmailInlocuitor,
-            NumarZileCalculate = body.NumarZileCalculate,
-            Motiv = body.Motiv
+            NumarZileCalculate = body.NumarZileCalculate
         };
 
         var id = await writer.CreeazaCerereAsync(req, ct);
@@ -98,9 +98,8 @@ public sealed class CerereConcediuLaEvenimentController(
             Email = email!,
             EmailInlocuitor = body.EmailInlocuitor,
             DataInceput = body.DataInceput,
-            DataSfarsit = body.DataSfarsit,
-            NumarZileCalculate = body.NumarZileCalculate,
-            Motiv = body.Motiv
+            TipEvenimentId = body.TipEvenimentId,
+            NumarZile = body.NumarZile
         };
 
         await writer.ActualizeazaCerereAsync(req, ct);
@@ -116,15 +115,15 @@ public sealed class CerereConcediuLaEvenimentController(
         return Ok(new CerereConcediuLaEvenimentGetByIdResponse
         {
             Id = result.Id,
-            DataCerere = result.DataCreare,
+            DataCerere = result.DataCerere,
             DataInceput = result.DataInceput,
-            DataSfarsit = result.DataSfarsit,
             NumarZile = result.NumarZile,
-            Stare = result.Stare,
+            TipEveniment = result.TipEveniment,
+            TipEvenimentId = result.TipEvenimentId,
             Inlocuitor = result.Inlocuitor,
-            NumarInregistrare = result.NumarInregistrare ?? string.Empty,
+            NumarInregistrare = result.NumarInregistrare,
             DataInregistrare = result.DataInregistrare,
-            Motiv = result.Motiv
+            State = result.State
         });
     }
 

@@ -8,5 +8,5 @@ public sealed class CerereConcediuLaEvenimentSendToEsignResponse
     public bool Succes { get; init; }
 
     [JsonPropertyName("Message")]
-    public string? Mesaj { get; init; }
+    public string? Message { get; init; }
 }

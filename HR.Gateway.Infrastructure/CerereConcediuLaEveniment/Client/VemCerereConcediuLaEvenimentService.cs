@@ -75,11 +75,15 @@ internal sealed class VemCerereConcediuLaEvenimentService(HttpClient http) : IVe
             req, JsonOptions, ct);
 
         var content = await resp.Content.ReadAsStringAsync(ct);
+
+        System.Diagnostics.Debug.WriteLine($"[SendToEsign] Status: {resp.StatusCode}");
+        System.Diagnostics.Debug.WriteLine($"[SendToEsign] Content: {content}");
+
         if (!resp.IsSuccessStatusCode)
-            return new CerereConcediuLaEvenimentSendToEsignResponse { Succes = false, Mesaj = $"MFWS {(int)resp.StatusCode}: {content}" };
+            return new CerereConcediuLaEvenimentSendToEsignResponse { Succes = false, Message = $"MFWS {(int)resp.StatusCode}: {content}" };
 
         return JsonSerializer.Deserialize<CerereConcediuLaEvenimentSendToEsignResponse>(content, JsonOptions)
-               ?? new CerereConcediuLaEvenimentSendToEsignResponse { Succes = false, Mesaj = "Răspuns gol/invalid de la VEM." };
+               ?? new CerereConcediuLaEvenimentSendToEsignResponse { Succes = false, Message = "Răspuns gol/invalid de la VEM." };
     }
 
     public async Task<CerereConcediuLaEvenimentUploadSignedResponse> UploadSignedAsync(CerereConcediuLaEvenimentUploadSignedRequest req, CancellationToken ct = default)

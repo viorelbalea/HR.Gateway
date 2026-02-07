@@ -35,14 +35,18 @@ public sealed class MFilesTokenProvider : IMFilesTokenProvider
 
     public async Task<string> GetTokenAsync(CancellationToken ct = default)
     {
-        if (!string.IsNullOrEmpty(_token))
+        // Token-urile M-Files expiră după ~60 min; le reînnoim preventiv după 50 min
+        var elapsed = DateTimeOffset.UtcNow - _obtainedAt;
+        if (!string.IsNullOrEmpty(_token) && elapsed < TimeSpan.FromMinutes(50))
             return _token!;
 
         await _gate.WaitAsync(ct);
         try
         {
-            if (!string.IsNullOrEmpty(_token))
-                return _token!; // double-check
+            // double-check după lock
+            elapsed = DateTimeOffset.UtcNow - _obtainedAt;
+            if (!string.IsNullOrEmpty(_token) && elapsed < TimeSpan.FromMinutes(50))
+                return _token!;
 
             var payload = new
             {
