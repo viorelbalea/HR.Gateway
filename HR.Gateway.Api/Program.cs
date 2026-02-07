@@ -47,9 +47,10 @@ builder.Services.AddScoped<IAdAuthService, LdapAdAuthService>();
 builder.Services.AddCors(opt =>
 {
     opt.AddPolicy("default", p => p
-        .AllowAnyOrigin()
+        .SetIsOriginAllowed(_ => true) // Pentru SignalR în dev - permite orice origine
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        .AllowCredentials()); // SignalR necesită credentials
 });
 builder.Services.AddHealthChecks();
 
@@ -90,6 +91,9 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
+
+// 7) SignalR pentru notificări real-time
+builder.Services.AddSignalR();
 
 // 6) Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -141,6 +145,7 @@ app.UseAuthorization();
 
 app.MapHealthChecks("/health");
 app.MapControllers();
+app.MapHub<HR.Gateway.Api.Hubs.CereriConcediuHub>("/hubs/cereri");
 
 // ===== UN SINGUR ROOT =====
 var root = enableSwagger
