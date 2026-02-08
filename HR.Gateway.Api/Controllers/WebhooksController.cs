@@ -43,11 +43,13 @@ public class WebhooksController : ControllerBase
     [AllowAnonymous] // TODO: Securizează cu API key sau IP whitelist
     public async Task<IActionResult> CerereStatusChangedAsync([FromBody] CerereStatusChangedNotification notif, CancellationToken ct)
     {
-        _log.LogInformation("Webhook: Cerere {Id} (tip: {Tip}) status changed: {Status} - message: {Msg}",
+        _log.LogWarning("▶▶▶ WEBHOOK RECEIVED ◀◀◀ Cerere {Id} (tip: {Tip}) status: {Status} - message: {Msg}",
             notif.CerereId, notif.TipCerere, notif.Status, notif.Message);
 
         // Trimite notificare la toți clienții conectați via SignalR
         await _hubContext.Clients.All.SendAsync("CerereStatusChanged", notif, ct);
+        
+        _log.LogWarning("▶▶▶ SIGNALR SENT ◀◀◀ pentru Cerere {Id}", notif.CerereId);
 
         return Ok();
     }
